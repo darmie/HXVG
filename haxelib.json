@@ -1,0 +1,14 @@
+{
+  "name": "hxvg",
+  "url" : "https://github.com/YOUR_NAME/hxvg/",
+  "license": "MIT",
+  "tags": ["haxe","js"],
+  "description": "description of hxvg",
+  "classPath": "src",
+  "version": "0.0.1",
+  "releasenote": "Initial release",
+  "contributors": ["YOUR_NAME"],
+  "dependencies": {
+
+  }
+}
