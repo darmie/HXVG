@@ -25,6 +25,10 @@ class MathExt {
         return d;
     }
 
+    public static function quantize(a: Float, d: Float): Float {
+        return Std.int((a / d + 0.5)) * d;
+    }
+
     public static function DegToRad(deg:Float):Float {
         return deg / 180.0 * Math.PI;
     }

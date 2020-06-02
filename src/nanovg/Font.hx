@@ -101,6 +101,15 @@ class Font {
 	 */
 	public static function resetFallbackFonts(baseFont:FontFace) {}
 
+
+	function flushTextTexture(){
+
+	}
+
+	function allocTextAtlas():Bool{
+		return false;
+	}
+
 }
 
 /**

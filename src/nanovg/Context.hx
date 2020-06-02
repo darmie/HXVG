@@ -839,7 +839,67 @@ class Context {
 	 * @param y2
 	 * @param radius
 	 */
-	public function arcTo(x1:Float, y1:Float, x2:Float, y2:Float, radius:Float) {}
+	public function arcTo(x1:Float, y1:Float, x2:Float, y2:Float, radius:Float) {
+		var x0:Float = commandx;
+		var y0:Float = commandy;
+		var dx0:Float;
+		var dy0:Float;
+		var dx1:Float;
+		var dy1:Float;
+		var a:Float;
+		var d:Float;
+		var cx:Float;
+		var cy:Float;
+		var a0:Float;
+		var a1:Float;
+		var dir:Winding;
+
+		if (this.ncommands == 0) {
+			return;
+		}
+
+		// Handle degenerate cases.
+		if (ptEquals(x0, y0, x1, y1, this.distTol)
+			|| ptEquals(x1, y1, x2, y2, this.distTol)
+			|| distPtSeg(x1, y1, x0, y0, x2, y2) < this.distTol * this.distTol
+			|| radius < this.distTol) {
+			lineTo(x1, y1);
+			return;
+		}
+
+		// Calculate tangential circle to lines (x0,y0)-(x1,y1) and (x1,y1)-(x2,y2).
+		dx0 = x0-x1;
+		dy0 = y0-y1;
+		dx1 = x2-x1;
+		dy1 = y2-y1;
+		MathExt.normalize((dx0),(dy0));
+		MathExt.normalize((dx1),(dy1));
+		a = Math.acos(dx0*dx1 + dy0*dy1);
+		d = radius / Math.tan(a/2.0);
+
+		if (d > 10000.0) {
+			lineTo(x1,y1);
+			return;
+		}
+	
+		if (MathExt.cross(dx0,dy0, dx1,dy1) > 0.0) {
+			cx = x1 + dx0*d + dy0*radius;
+			cy = y1 + dy0*d + -dx0*radius;
+			a0 = Math.atan2(dx0, -dy0);
+			a1 = Math.atan2(-dx1, dy1);
+			dir = CW;
+	//		printf("CW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
+		} else {
+			cx = x1 + dx0*d + -dy0*radius;
+			cy = y1 + dy0*d + dx0*radius;
+			a0 = Math.atan2(-dx0, dy0);
+			a1 = Math.atan2(dx1, -dy1);
+			dir = CCW;
+	//		printf("CCW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
+		}
+	
+		arc(cx, cy, radius, a0, a1, dir);
+	}
 
 	/**
 	 * Closes current sub-path with a line segment.
@@ -847,7 +907,7 @@ class Context {
 	public function closePath() {
 		var vals = new Array<Float>();
 		vals[0] = CLOSE;
-		appendCommands(vals, vals.length);		
+		appendCommands(vals, vals.length);
 	}
 
 	/**
@@ -856,7 +916,8 @@ class Context {
 	 */
 	public function pathWinding(dir:Winding) {
 		var vals = new Array<Float>();
-		vals[0] = WINDING; vals[1] = dir;
+		vals[0] = WINDING;
+		vals[1] = dir;
 		appendCommands(vals, vals.length);
 	}
 
@@ -873,7 +934,67 @@ class Context {
 	 * @param dir
 	 */
 	public function arc(cx:Float, cy:Float, r:Float, a0:Float, a1:Float, dir:Winding) {
-
+		var a: Float = 0; var da: Float = 0; var hda: Float = 0; var kappa: Float = 0;
+		var dx: Float = 0; var dy: Float = 0; var x: Float = 0; var y: Float = 0; var tanx: Float = 0; var tany: Float = 0;
+		var px: Float = 0; var py: Float = 0; var ptanx: Float = 0; var ptany: Float = 0;
+		var vals = new Vector<Float>(3 + 5*7 + 100);
+		var i: Int; var ndivs: Int; var nvals: Int;
+		var move: DrawCommands = ncommands > 0 ? LINETO : MOVETO;
+	
+		// Clamp angles
+		da = a1 - a0;
+		if (dir == CW) {
+			if (Math.abs(da) >= NVG_PI*2) {
+				da = NVG_PI*2;
+			} else {
+				while (da < 0.0) da += NVG_PI*2;
+			}
+		} else {
+			if (Math.abs(da) >= NVG_PI*2) {
+				da = -NVG_PI*2;
+			} else {
+				while (da > 0.0) da -= NVG_PI*2;
+			}
+		}
+	
+		// Split arc into max 90 degree segments.
+		ndivs = Std.int(Math.max(1, Math.min(Std.int(Math.abs(da) / (NVG_PI*0.5) + 0.5), 5)));
+		hda = (da / ndivs) / 2.0;
+		kappa = Math.abs(4.0 / 3.0 * (1.0 - Math.cos(hda)) / Math.sin(hda));
+	
+		if (dir == CCW)
+			kappa = -kappa;
+	
+		nvals = 0;
+		for (i in 0...ndivs + 1) {
+			a = a0 + da * (i/ndivs);
+			dx = Math.cos(a);
+			dy = Math.sin(a);
+			x = cx + dx*r;
+			y = cy + dy*r;
+			tanx = -dy*r*kappa;
+			tany = dx*r*kappa;
+	
+			if (i == 0) {
+				vals[nvals++] = move;
+				vals[nvals++] = x;
+				vals[nvals++] = y;
+			} else {
+				vals[nvals++] = BEZIERTO;
+				vals[nvals++] = px+ptanx;
+				vals[nvals++] = py+ptany;
+				vals[nvals++] = x-tanx;
+				vals[nvals++] = y-tany;
+				vals[nvals++] = x;
+				vals[nvals++] = y;
+			}
+			px = x;
+			py = y;
+			ptanx = tanx;
+			ptany = tany;
+		}
+	
+		appendCommands(vals.toArray(), nvals);
 	}
 
 	/**
@@ -885,10 +1006,18 @@ class Context {
 	 */
 	public function rect(x:Float, y:Float, w:Float, h:Float) {
 		var vals = new Array<Float>();
-		vals[0] = MOVETO; vals[1] = x; vals[2] = y;
-		vals[3] = LINETO; vals[4] = x; vals[5] = y+h;
-		vals[6] = LINETO; vals[7] = x+w; vals[8] = y+h;
-		vals[9] = LINETO; vals[10] = x+w; vals[11] = y;
+		vals[0] = MOVETO;
+		vals[1] = x;
+		vals[2] = y;
+		vals[3] = LINETO;
+		vals[4] = x;
+		vals[5] = y + h;
+		vals[6] = LINETO;
+		vals[7] = x + w;
+		vals[8] = y + h;
+		vals[9] = LINETO;
+		vals[10] = x + w;
+		vals[11] = y;
 		vals[12] = CLOSE;
 		appendCommands(vals, vals.length);
 	}
@@ -917,26 +1046,64 @@ class Context {
 	 * @param radBottomLeft
 	 */
 	public function roundedRectVarying(x:Float, y:Float, w:Float, h:Float, radTopLeft:Float, radTopRight:Float, radBottomRight:Float, radBottomLeft:Float) {
-		if(radTopLeft < 0.1 && radTopRight < 0.1 && radBottomRight < 0.1 && radBottomLeft < 0.1) {
+		if (radTopLeft < 0.1 && radTopRight < 0.1 && radBottomRight < 0.1 && radBottomLeft < 0.1) {
 			rect(x, y, w, h);
 			return;
 		} else {
-			var halfw: Float = Math.abs(w)*0.5;
-			var halfh: Float = Math.abs(h)*0.5;
-			var rxBL: Float = Math.min(radBottomLeft, halfw) * MathExt.sign(w), ryBL = Math.min(radBottomLeft, halfh) * MathExt.sign(h);
-			var rxBR: Float = Math.min(radBottomRight, halfw) * MathExt.sign(w), ryBR = Math.min(radBottomRight, halfh) * MathExt.sign(h);
-			var rxTR: Float = Math.min(radTopRight, halfw) * MathExt.sign(w), ryTR = Math.min(radTopRight, halfh) * MathExt.sign(h);
-			var rxTL: Float = Math.min(radTopLeft, halfw) * MathExt.sign(w), ryTL = Math.min(radTopLeft, halfh) * MathExt.sign(h);
+			var halfw:Float = Math.abs(w) * 0.5;
+			var halfh:Float = Math.abs(h) * 0.5;
+			var rxBL:Float = Math.min(radBottomLeft, halfw) * MathExt.sign(w),
+				ryBL = Math.min(radBottomLeft, halfh) * MathExt.sign(h);
+			var rxBR:Float = Math.min(radBottomRight, halfw) * MathExt.sign(w),
+				ryBR = Math.min(radBottomRight, halfh) * MathExt.sign(h);
+			var rxTR:Float = Math.min(radTopRight, halfw) * MathExt.sign(w),
+				ryTR = Math.min(radTopRight, halfh) * MathExt.sign(h);
+			var rxTL:Float = Math.min(radTopLeft, halfw) * MathExt.sign(w),
+				ryTL = Math.min(radTopLeft, halfh) * MathExt.sign(h);
 			var vals = new Array<Float>();
-			vals[0] = MOVETO; vals[1] = x; vals[2] = y + ryTL;
-			vals[3] = LINETO; vals[4] = x; vals[5] = y + h - ryBL;
-			vals[6] = BEZIERTO; vals[7] = x; vals[8] = y + h - ryBL*(1 - NVG_KAPPA90); vals[9] = x + rxBL*(1 - NVG_KAPPA90); vals[10] = y + h; vals[11] = x + rxBL; vals[12] = y + h;
-			vals[13] = LINETO; vals[14] = x + w - rxBR; vals[15] = y + h;
-			vals[16] = BEZIERTO; vals[17] = x + w - rxBR*(1 - NVG_KAPPA90); vals[18] = y + h; vals[19] = x + w; vals[20] = y + h - ryBR*(1 - NVG_KAPPA90); vals[21] = x + w; vals[22] = y + h - ryBR;
-			vals[23] = LINETO; vals[24] = x + w;vals[25] = y + ryTR;
-			vals[26] = BEZIERTO; vals[27] = x + w; vals[28] = y + ryTR*(1 - NVG_KAPPA90); vals[29] = x + w - rxTR*(1 - NVG_KAPPA90); vals[30] = y; vals[31] = x + w - rxTR; vals[32] = y;
-			vals[33] = LINETO; vals[34] = x + rxTL; vals[35] = y;
-			vals[36] = BEZIERTO; vals[37] = x + rxTL*(1 - NVG_KAPPA90); vals[38] = y; vals[39] = x; vals[40] = y + ryTL*(1 - NVG_KAPPA90); vals[41] = x; vals[42] = y + ryTL;
+			vals[0] = MOVETO;
+			vals[1] = x;
+			vals[2] = y + ryTL;
+			vals[3] = LINETO;
+			vals[4] = x;
+			vals[5] = y + h - ryBL;
+			vals[6] = BEZIERTO;
+			vals[7] = x;
+			vals[8] = y + h - ryBL * (1 - NVG_KAPPA90);
+			vals[9] = x + rxBL * (1 - NVG_KAPPA90);
+			vals[10] = y + h;
+			vals[11] = x + rxBL;
+			vals[12] = y + h;
+			vals[13] = LINETO;
+			vals[14] = x + w - rxBR;
+			vals[15] = y + h;
+			vals[16] = BEZIERTO;
+			vals[17] = x + w - rxBR * (1 - NVG_KAPPA90);
+			vals[18] = y + h;
+			vals[19] = x + w;
+			vals[20] = y + h - ryBR * (1 - NVG_KAPPA90);
+			vals[21] = x + w;
+			vals[22] = y + h - ryBR;
+			vals[23] = LINETO;
+			vals[24] = x + w;
+			vals[25] = y + ryTR;
+			vals[26] = BEZIERTO;
+			vals[27] = x + w;
+			vals[28] = y + ryTR * (1 - NVG_KAPPA90);
+			vals[29] = x + w - rxTR * (1 - NVG_KAPPA90);
+			vals[30] = y;
+			vals[31] = x + w - rxTR;
+			vals[32] = y;
+			vals[33] = LINETO;
+			vals[34] = x + rxTL;
+			vals[35] = y;
+			vals[36] = BEZIERTO;
+			vals[37] = x + rxTL * (1 - NVG_KAPPA90);
+			vals[38] = y;
+			vals[39] = x;
+			vals[40] = y + ryTL * (1 - NVG_KAPPA90);
+			vals[41] = x;
+			vals[42] = y + ryTL;
 			vals[43] = CLOSE;
 			appendCommands(vals, vals.length);
 		}
@@ -951,11 +1118,37 @@ class Context {
 	 */
 	public function ellipse(cx:Float, cy:Float, rx:Float, ry:Float) {
 		var vals = new Array<Float>();
-		vals[0] = MOVETO; vals[1] = cx-rx; vals[2] = cy;
-		vals[3] = BEZIERTO; vals[4] = cx-rx; vals[5] = cy+ry*NVG_KAPPA90; vals[6] = cx-rx*NVG_KAPPA90; vals[7] = cy+ry; vals[8] = cx; vals[9] = cy+ry;
-		vals[10] = BEZIERTO; vals[11] = cx+rx*NVG_KAPPA90; vals[12] = cy+ry; vals[13] = cx+rx; vals[14] = cy+ry*NVG_KAPPA90; vals[15] = cx+rx; vals[16] = cy;
-		vals[17] = BEZIERTO; vals[18] = cx+rx; vals[19] = cy-ry*NVG_KAPPA90; vals[20] = cx+rx*NVG_KAPPA90; vals[21] = cy-ry; vals[22] = cx; vals[23] = cy-ry;
-		vals[24] = BEZIERTO; vals[25] = cx-rx*NVG_KAPPA90; vals[26] = cy-ry; vals[27] = cx-rx; vals[28] = cy-ry*NVG_KAPPA90; vals[29] = cx-rx; vals[30] = cy;
+		vals[0] = MOVETO;
+		vals[1] = cx - rx;
+		vals[2] = cy;
+		vals[3] = BEZIERTO;
+		vals[4] = cx - rx;
+		vals[5] = cy + ry * NVG_KAPPA90;
+		vals[6] = cx - rx * NVG_KAPPA90;
+		vals[7] = cy + ry;
+		vals[8] = cx;
+		vals[9] = cy + ry;
+		vals[10] = BEZIERTO;
+		vals[11] = cx + rx * NVG_KAPPA90;
+		vals[12] = cy + ry;
+		vals[13] = cx + rx;
+		vals[14] = cy + ry * NVG_KAPPA90;
+		vals[15] = cx + rx;
+		vals[16] = cy;
+		vals[17] = BEZIERTO;
+		vals[18] = cx + rx;
+		vals[19] = cy - ry * NVG_KAPPA90;
+		vals[20] = cx + rx * NVG_KAPPA90;
+		vals[21] = cy - ry;
+		vals[22] = cx;
+		vals[23] = cy - ry;
+		vals[24] = BEZIERTO;
+		vals[25] = cx - rx * NVG_KAPPA90;
+		vals[26] = cy - ry;
+		vals[27] = cx - rx;
+		vals[28] = cy - ry * NVG_KAPPA90;
+		vals[29] = cx - rx;
+		vals[30] = cy;
 		vals[31] = CLOSE;
 		appendCommands(vals, vals.length);
 	}
@@ -968,44 +1161,82 @@ class Context {
 	 * @param ry
 	 */
 	public function circle(cx:Float, cy:Float, r:Float) {
-		ellipse(cx,cy, r,r);
+		ellipse(cx, cy, r, r);
 	}
 
 	/**
 	 * Fills the current path with current fill style.
 	 */
 	public function fill() {
-		var state: State = getState();
-		var path: Path;
-		var fillPaint: Paint = state.fill;
+		var state:State = getState();
+		var path:Path;
+		var fillPaint:Paint = state.fill;
 		// int i;
-	
+
 		flattenPaths();
 		if (cast(this.renderer, Renderer).edgeAntiAlias != 0 && state.shapeAntiAlias != 0)
-			expandFill( this.fringeWidth, MITER, 2.4);
+			expandFill(this.fringeWidth, MITER, 2.4);
 		else
-			expandFill( 0.0, MITER, 2.4);
-	
+			expandFill(0.0, MITER, 2.4);
+
 		// Apply global alpha
 		fillPaint.innerColor.a *= state.alpha;
 		fillPaint.outerColor.a *= state.alpha;
-	
-		this.renderer.fill(fillPaint, state.compositeOperation, state.scissor, this.fringeWidth,
-							   this.cache.bounds, this.cache.paths);
-	
+
+		this.renderer.fill(fillPaint, state.compositeOperation, state.scissor, this.fringeWidth, this.cache.bounds, this.cache.paths);
+
 		// Count triangles
 		for (i in 0...this.cache.npaths) {
 			path = this.cache.paths[i];
-			this.fillTriCount += path.nfill-2;
-			this.fillTriCount += path.nstroke-2;
+			this.fillTriCount += path.nfill - 2;
+			this.fillTriCount += path.nstroke - 2;
 			this.drawCallCount += 2;
-		}		
+		}
 	}
 
 	/**
 	 * Fills the current path with current stroke style.
 	 */
-	public function stroke() {}
+	public function stroke() {
+		var ctx = this;
+		var state: State = getState();
+		var scale: Float = getAverageScale(state.xform);
+		var strokeWidth: Float = MathExt.clamp(state.strokeWidth * scale, 0.0, 200.0);
+		var strokePaint: Paint = state.stroke;
+		var path: Path;
+		// int i;
+	
+	
+		if (strokeWidth < ctx.fringeWidth) {
+			// If the stroke width is less than pixel size, use alpha to emulate coverage.
+			// Since coverage is area, scale by alpha*alpha.
+			var alpha: Float = MathExt.clamp(strokeWidth / ctx.fringeWidth, 0.0, 1.0);
+			strokePaint.innerColor.a *= alpha*alpha;
+			strokePaint.outerColor.a *= alpha*alpha;
+			strokeWidth = ctx.fringeWidth;
+		}
+	
+		// Apply global alpha
+		strokePaint.innerColor.a *= state.alpha;
+		strokePaint.outerColor.a *= state.alpha;
+	
+		flattenPaths();
+	
+		if (cast(ctx.renderer, Renderer).edgeAntiAlias != 0 && state.shapeAntiAlias != 0)
+			expandStroke(strokeWidth*0.5, ctx.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
+		else
+			expandStroke(strokeWidth*0.5, 0.0, state.lineCap, state.lineJoin, state.miterLimit);
+	
+		ctx.renderer.stroke(strokePaint, state.compositeOperation, state.scissor, ctx.fringeWidth,
+								 strokeWidth, ctx.cache.paths);
+	
+		// Count triangles
+		for (i in 0...ctx.cache.npaths) {
+			path = ctx.cache.paths[i];
+			ctx.strokeTriCount += path.nstroke-2;
+			ctx.drawCallCount++;
+		}		
+	}
 
 	/**
 	 * Sets the font size of current text style.
@@ -1080,7 +1311,38 @@ class Context {
 	 * @param string
 	 * @param end
 	 */
-	public function textBox(x:Float, y:Float, breakRowWidth:Float, string:String, ?end:String) {}
+	public function textBox(x:Float, y:Float, breakRowWidth:Float, string:String, ?end:String) {
+		var state: State = getState();
+		var rows = new Array<TextRow>();
+		var nrows: Int = 0; var i: Int;
+		var oldAlign: Int = state.textAlign;
+		var haling: Int = state.textAlign & (LEFT | CENTER | RIGHT);
+		var valign: Int = state.textAlign & (TOP | MIDDLE | BOTTOM | BASELINE);
+		var lineh: Float = 0;
+	
+		if (state.font == null) return; //FONS_INVALID
+	
+		var metrics = textMetrics();
+		lineh = metrics.lineh;
+	
+		state.textAlign = LEFT | valign;
+	
+		while ((nrows = textBreakLines(string, end, breakRowWidth, rows, 2)) != 0) {
+			for (i in 0...nrows) {
+				var row: TextRow = rows[i];
+				if ((haling & LEFT) != 0)
+					text(x, y, row.start, row.end);
+				else if ((haling & CENTER) != 0)
+					text(x + breakRowWidth*0.5 - row.width*0.5, y, row.start, row.end);
+				else if ((haling & RIGHT) != 0)
+					text(x + breakRowWidth - row.width, y, row.start, row.end);
+				y += lineh * state.lineHeight;
+			}
+			string = rows[nrows-1].next;
+		}
+	
+		state.textAlign = oldAlign;
+	}
 
 	/**
 	 * Measures the specified text string. Parameter bounds should be a pointer to float[4],
@@ -1125,7 +1387,7 @@ class Context {
 	 * Returns the vertical metrics based on the current text style.
 	 * Measured values are returned in local coordinate space.
 	 */
-	public function textMetrics():{ascender:Float, descender:Float, lineh:Float} {
+	public function textMetrics():{?ascender:Float, ?descender:Float, ?lineh:Float} {
 		return null;
 	}
 
@@ -1135,7 +1397,7 @@ class Context {
 	 * Words longer than the max width are slit at nearest character (i.e. no hyphenation).
 	 * @return Int
 	 */
-	public function textBreakLines():Int {
+	public function textBreakLines(string:String, end:String, breakRowWidth:Float, rows:Array<TextRow>, maxRows:Int):Int {
 		return 0;
 	}
 
@@ -1526,7 +1788,7 @@ class Context {
 
 	function flattenPaths():Void {
 		var cache:PathCache = this.cache;
-		//	NVGstate* state = getState(this);
+		
 		var last:Point;
 		var p0:Pointer<Point>;
 		var p1:Pointer<Point>;
@@ -2243,5 +2505,28 @@ class Context {
 		}
 
 		return 1;
+	}
+
+
+	inline function getFontScale(state:State):Float {
+		return Math.min(MathExt.quantize(getAverageScale(state.xform), 0.01), 4.0);
+	}
+
+	function renderText(verts: Array<Vertex>, nverts: Int){
+		var ctx = this;
+		var state: State = getState();
+		var paint: Paint = state.fill;
+	
+		// Render triangles.
+		paint.image = ctx.fontImages[ctx.fontImageIdx];
+	
+		// Apply global alpha
+		paint.innerColor.a *= state.alpha;
+		paint.outerColor.a *= state.alpha;
+	
+		ctx.renderer.triangles(paint, state.compositeOperation, state.scissor, verts, ctx.fringeWidth);
+	
+		ctx.drawCallCount++;
+		ctx.textTriCount += Std.int(nverts/3);		
 	}
 }
