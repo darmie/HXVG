@@ -174,8 +174,8 @@ abstract Color(TColor) {
         if (h < 0.0) h += 1.0;
         s = MathExt.clamp(s, 0.0, 1.0);
         l = MathExt.clamp(l, 0.0, 1.0);
-        m2 = FPHelper.floatToI32(l <= 0.5 ? (l * (1 + s)) : (l + s - l * s));
-        m1 = FPHelper.floatToI32(2 * l - m2);
+        m2 = Std.int(l <= 0.5 ? (l * (1 + s)) : (l + s - l * s));
+        m1 = Std.int(2 * l - m2);
         col.r = MathExt.clamp(hue(h + 1.0/3.0, m1, m2), 0.0, 1.0);
         col.g = MathExt.clamp(hue(h, m1, m2), 0.0, 1.0);
         col.b = MathExt.clamp(hue(h - 1.0/3.0, m1, m2), 0.0, 1.0);
