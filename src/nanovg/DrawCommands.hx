@@ -1,9 +1,9 @@
 package nanovg;
 
-enum DrawCommands {
-    MOVETO;
-	LINETO;
-	BEZIERTO;
-	CLOSE;
-	WINDING;
+enum abstract DrawCommands (Int) from Int to Int{
+    var MOVETO;
+	var LINETO;
+	var BEZIERTO;
+	var CLOSE;
+	var WINDING;
 }

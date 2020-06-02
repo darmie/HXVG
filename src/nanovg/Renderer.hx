@@ -21,7 +21,7 @@ interface IRenderer {
 }
 
 class Renderer implements IRenderer {
-	public var edgeAntalias:Int;
+	public var edgeAntiAlias:Int;
 
 	public function new() {}
 

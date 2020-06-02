@@ -8,5 +8,5 @@ enum abstract PointFlags(Int) from Int to Int {
     var PT_CORNER = 0x01;
     var PT_LEFT = 0x02;
     var PT_BEVEL = 0x04;
-    var PT_INNERBEVEL = 0x08;
+    var PR_INNERBEVEL = 0x08;
 }

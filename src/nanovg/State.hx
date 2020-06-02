@@ -7,21 +7,21 @@ import nanovg.Paint;
 import nanovg.CompositeOperationState;
 
 typedef State = {
-    compositeOperation:Null<CompositeOperationState>,
-    shapeAntiAlias:Null<Int>,
-    fill:Null<Paint>,
-    stroke:Null<Paint>,
-    strokeWidth:Null<Float>,
-	miterLimit:Null<Float>,
-	lineJoin:Null<LineCap>,
-	lineCap:Null<Int>,
-	alpha:Null<Float>,
-	xform:Array<Float>,
-	scissor:Null<Scissor>,
-	fontSize:Null<Float>,
-	letterSpacing:Null<Float>,
-	lineHeight:Null<Float>,
-	fontBlur:Null<Float>,
-	textAlign:Null<Align>,
-	font:Null<Font>
+    ?compositeOperation:CompositeOperationState,
+    ?shapeAntiAlias:Int,
+    ?fill:Paint,
+    ?stroke:Paint,
+    ?strokeWidth:Float,
+	?miterLimit:Float,
+	?lineJoin:LineCap,
+	?lineCap:LineCap,
+	?alpha:Float,
+	?xform:Matrix,
+	?scissor:Scissor,
+	?fontSize:Float,
+	?letterSpacing:Float,
+	?lineHeight:Float,
+	?fontBlur:Float,
+	?textAlign:Align,
+	?font:Font
 }
