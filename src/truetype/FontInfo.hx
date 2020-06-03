@@ -15,7 +15,11 @@ class FontInfo {
 	var indexMap:Int; // a cmap mapping for our chosen character encoding
     var indexToLocFormat:Int; // format needed to map from glyph index to glyph
     
-    public function new() {
+    public function new(data:Bytes, offset:Int) {
         
+    }
+
+    public function getFontVMetrics():{ascent:Int, descent:Int, lineGap:Int} {
+        return {ascent:-1, descent:-1, lineGap:-1};
     }
 }
