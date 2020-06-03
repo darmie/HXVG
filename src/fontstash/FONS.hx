@@ -15,21 +15,21 @@ class FONS {
 
 	public static final INIT_FONTIMAGE_SIZE = 512;
 	public static final MAX_FONTIMAGE_SIZE = 2048;
-    public static final MAX_FONTIMAGES = 4;
-    
-    public static function __mini(a:Int, b:Int) {
-        if (a < b) {
-            return a;
-        }
-        return b;
-    }
+	public static final MAX_FONTIMAGES = 4;
 
-    public static function __maxi(a:Int, b:Int) {
-        if (a > b) {
-            return a;
-        }
-        return b;
-    }
+	public static function __mini(a:Int, b:Int) {
+		if (a < b) {
+			return a;
+		}
+		return b;
+	}
+
+	public static function __maxi(a:Int, b:Int) {
+		if (a > b) {
+			return a;
+		}
+		return b;
+	}
 }
 
 enum abstract Flags(Int) from Int to Int {
@@ -137,11 +137,9 @@ abstract Atlas(TAtlas) from TAtlas to TAtlas {
 
 	public function addRect(w:Int, height:Int):{?bestX:Int, ?bestY:Int} {
 		return {};
-    }
-    
-    public function reset(w:Int, height:Int) {
-        
-    }
+	}
+
+	public function reset(w:Int, height:Int) {}
 }
 
 typedef AtlasNodes = {
@@ -190,9 +188,9 @@ class Context {
 			blur: 0.0,
 			spacing: 0.0,
 			align: FONS_ALIGN_LEFT | FONS_ALIGN_BASELINE
-        };
-        
-        addWhiteRect(2, 2);
+		};
+
+		addWhiteRect(2, 2);
 	}
 
 	public function setSize(size:Float):Void
@@ -276,39 +274,39 @@ class Context {
 			}
 		}
 		return null;
-    }
-    
-    public function getFontName():String {
-        return state.font.name;
-    }
+	}
+
+	public function getFontName():String {
+		return state.font.name;
+	}
 
 	public function resetAtlas(w:Int, h:Int):Void {
-        var stash = this;
-        // Flush pending glyphs
-        stash.flush();
-        // Reset atlas
-        stash.atlas.reset(w, h);
+		var stash = this;
+		// Flush pending glyphs
+		stash.flush();
+		// Reset atlas
+		stash.atlas.reset(w, h);
 
-        // Clear texture data
-        stash.textureData = Bytes.alloc(w*h);
-        // Reset dirty rect
-        stash.dirtyRect[0] = w;
-        stash.dirtyRect[1] = h;
-        stash.dirtyRect[2] = 0;
-        stash.dirtyRect[3] = 0;
+		// Clear texture data
+		stash.textureData = Bytes.alloc(w * h);
+		// Reset dirty rect
+		stash.dirtyRect[0] = w;
+		stash.dirtyRect[1] = h;
+		stash.dirtyRect[2] = 0;
+		stash.dirtyRect[3] = 0;
 
-        // reset cached glyphs
-        for(font in fonts){
-            font.glyphs = new Map<GlyphKey, Glyph>();
-        }
+		// reset cached glyphs
+		for (font in fonts) {
+			font.glyphs = new Map<GlyphKey, Glyph>();
+		}
 
-        stash.renderer.width = w;
-        stash.renderer.height = h;
-        stash.itw = Std.int(1.0 / w);
-        stash.ith = Std.int(1.0 / h);
-        // Add white rect at 0, 0 for debug drawing
-        stash.addWhiteRect(2, 2);
-    }
+		stash.renderer.width = w;
+		stash.renderer.height = h;
+		stash.itw = Std.int(1.0 / w);
+		stash.ith = Std.int(1.0 / h);
+		// Add white rect at 0, 0 for debug drawing
+		stash.addWhiteRect(2, 2);
+	}
 
 	public function addFont(name:String, path:String):Font {
 		var fontFile = File.read(path);
@@ -319,84 +317,84 @@ class Context {
 	}
 
 	public function addFontMem(name:String, data:Bytes, freeData:Int):Font {
-        var fontInstance = new FontInfo(data, 0);
-        var metrics = fontInstance.getFontVMetrics();
-        var fh:Float = cast(metrics.ascent - metrics.descent);
-        var font:Font = {
-            glyphs: new Map<GlyphKey, Glyph>(),
-            name:      name,
-            data:      data,
-            freeData:  freeData,
-            font:      fontInstance,
-            ascender:  Std.int(metrics.ascent / fh),
-            descender: Std.int(metrics.descent / fh),
-            lineh:     Std.int((fh + metrics.lineGap) / fh)
-        };
+		var fontInstance = new FontInfo(data, 0);
+		var metrics = fontInstance.getFontVMetrics();
+		var fh:Float = cast(metrics.ascent - metrics.descent);
+		var font:Font = {
+			glyphs: new Map<GlyphKey, Glyph>(),
+			name: name,
+			data: data,
+			freeData: freeData,
+			font: fontInstance,
+			ascender: Std.int(metrics.ascent / fh),
+			descender: Std.int(metrics.descent / fh),
+			lineh: Std.int((fh + metrics.lineGap) / fh)
+		};
 
-        fonts.push(font);
+		fonts.push(font);
 		return font;
 	}
 
 	public function textBounds(x:Float, y:Float, string:String, end:String, bounds:Array<Float>):Float {
-        var prevGlyphIndex = -1;
-        var size = Std.int(state.size * 10.0);
-        var blur = Std.int(state.blur);
-        if(state.font == null) return 0;
-        var font:Font = state.font;
+		var prevGlyphIndex = -1;
+		var size = Std.int(state.size * 10.0);
+		var blur = Std.int(state.blur);
+		if (state.font == null)
+			return 0;
+		var font:Font = state.font;
 
-        var scale = font.getPixelHeightScale(state.size);
-        y += getVerticalAlign(font, state.align, size);
-        var minX = x;
-        var maxX = x;
-        var minY = y;
-        var maxY = y;
-        var startX = x;
-        for(i in 0...string.length){
-            var codePoint = string.charCodeAt(i);
-            var glyph = getGlyph(font, codePoint, size, blur);
-            if(glyph != null){
-                var q = getQuad(font, prevGlyphIndex, glyph, scale, state.spacing, x, y);
-                x = q.x;
-                y = q.y;
-                if (q.quad.x0 < minX) {
-                    minX = q.quad.x0;
-                }
-                if (q.quad.x1 > maxX) {
-                    maxX = q.quad.x1;
-                }
-                if (q.quad.y0 < minY) {
-                    minY = q.quad.y0;
-                }
-                if (q.quad.y1 > maxY) {
-                    maxY = q.quad.y1;
-                }
-                prevGlyphIndex = glyph.index;
-            } else {
-                prevGlyphIndex = -1;
-            }
-        }
-        var advance = x - startX;
-        if ((state.align & FONS_ALIGN_LEFT) != 0) {
-
-            // do nothing
-        } else if ((state.align & FONS_ALIGN_RIGHT) != 0) {
-            minX -= advance;
-            maxX -= advance;
-        } else if ((state.align & FONS_ALIGN_CENTER) != 0) {
-            minX -= advance * 0.5;
-            maxX -= advance * 0.5;
-        }
-        bounds = [minX, minY, maxX, maxY];
+		var scale = font.getPixelHeightScale(state.size);
+		y += getVerticalAlign(font, state.align, size);
+		var minX = x;
+		var maxX = x;
+		var minY = y;
+		var maxY = y;
+		var startX = x;
+		for (i in 0...string.length) {
+			var codePoint = string.charCodeAt(i);
+			var glyph = getGlyph(font, codePoint, size, blur);
+			if (glyph != null) {
+				var q = getQuad(font, prevGlyphIndex, glyph, scale, state.spacing, x, y);
+				x = q.x;
+				y = q.y;
+				if (q.quad.x0 < minX) {
+					minX = q.quad.x0;
+				}
+				if (q.quad.x1 > maxX) {
+					maxX = q.quad.x1;
+				}
+				if (q.quad.y0 < minY) {
+					minY = q.quad.y0;
+				}
+				if (q.quad.y1 > maxY) {
+					maxY = q.quad.y1;
+				}
+				prevGlyphIndex = glyph.index;
+			} else {
+				prevGlyphIndex = -1;
+			}
+		}
+		var advance = x - startX;
+		if ((state.align & FONS_ALIGN_LEFT) != 0) {
+			// do nothing
+		} else if ((state.align & FONS_ALIGN_RIGHT) != 0) {
+			minX -= advance;
+			maxX -= advance;
+		} else if ((state.align & FONS_ALIGN_CENTER) != 0) {
+			minX -= advance * 0.5;
+			maxX -= advance * 0.5;
+		}
+		bounds = [minX, minY, maxX, maxY];
 		return advance;
-    }
-    
-    function getGlyph(font:Font, codePoint:Int, size:Int, blur:Int):Glyph {
-        return null;
-    }
+	}
 
-    function getQuad(font:Font, prevGlyphIndex:Int, glyph:Dynamic, scale:Float, spacing:Float, x:Float, y:Float):{quad:Quad, x:Float, y:Float} {
-        return null;
-    }
+	function getGlyph(font:Font, codePoint:Int, size:Int, blur:Int):Glyph {
+		return null;
+	}
+
+	function getQuad(font:Font, prevGlyphIndex:Int, glyph:Dynamic, scale:Float, spacing:Float, x:Float, y:Float):{quad:Quad, x:Float, y:Float} {
+		return null;
+	}
 
 	public function textIterInit(x:Float, y:Float, str:String, ?end:String, ?bitmapOption:Int):TextIter {
 		return {};
@@ -408,11 +406,9 @@ class Context {
 
 	public function getTextureData(width:Int, height:Int):Array<Int> {
 		return null;
-    }
-    
-    function flush() {
-        
-    }
+	}
+
+	function flush() {}
 }
 
 typedef State = {
@@ -457,11 +453,11 @@ typedef TFont = {
 
 @:forward(font, name, data, freeData, ascender, descender, lineh, glyphs, lut)
 abstract Font(TFont) from TFont to TFont {
-    inline function new(f:TFont) {
-        this = f;
-    }
+	inline function new(f:TFont) {
+		this = f;
+	}
 
-    public function getPixelHeightScale(size:Float):Float{
-        return 0;
-    }
+	public function getPixelHeightScale(size:Float):Float {
+		return 0;
+	}
 }
