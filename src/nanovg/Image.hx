@@ -13,6 +13,10 @@ import haxe.io.Bytes;
 class Image {
 
     var context:Context;
+    var handle:Dynamic;
+
+    public var width:Int;
+    public var height:Int;
 
     /**
      * Creates image by loading it from the disk from specified file name.
@@ -20,8 +24,18 @@ class Image {
      * @param fileName 
      * @param imageFlags 
      */
-    public function new(ctx:Context, fileName:String, imageFlags:ImageFlags) {
+    public function new(ctx:Context, ?fileName:String, ?imageFlags:ImageFlags) {
         context = ctx;
+    }
+
+    public static function createFontImage(ctx:Context, textureType:TextureType, size:Size, imageFlags:ImageFlags):Image {
+        var imageHandle = ctx.internalRenderer().createTexture(textureType, size.w, size.h, imageFlags, null);
+
+        var img = new Image(ctx, imageFlags);
+        img.height = size.h;
+        img.width = size.w;
+        img.handle = imageHandle;
+        return img;
     }
 
     /**

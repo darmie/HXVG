@@ -7,6 +7,7 @@ import nanovg.CompositeOperationState.CompositeOperation;
 import nanovg.Align;
 import nanovg.DrawCommands;
 import nanovg.PointFlags;
+import fontstash.FONS.Context as Fontstash;
 
 /**
  * Nanovg Context
@@ -46,6 +47,8 @@ class Context {
 	var strokeTriCount:Int;
 	var textTriCount:Int;
 
+	var fontstash:Fontstash;
+
 	public function new(renderer:IRenderer) {
 		this.renderer = renderer;
 		for (i in 0...NVG_MAX_FONTIMAGES) {
@@ -62,8 +65,14 @@ class Context {
 		reset();
 
 		setDevicePixelRatio(1.0);
+	}
 
-		// Todo: fonts render setup
+	public function setFontRenderer(fontRenderer:Fontstash){
+		fontstash = fontRenderer;
+		
+		// Create font texture
+		fontImages[0] = Image.createFontImage(this, TEXTURE_ALPHA, {w:fontstash.renderer.width, h: fontstash.renderer.height}, 0);
+		fontImageIdx = 0;
 	}
 
 	public function internalRenderer():IRenderer {

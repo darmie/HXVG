@@ -3,7 +3,7 @@ package nanovg;
 import haxe.io.Bytes;
 
 interface IRenderer {
-	public function createTexture(type:Int, width:Int, height:Int, imageFlags:ImageFlags, data:Bytes):Dynamic;
+	public function createTexture(type:TextureType, width:Int, height:Int, imageFlags:ImageFlags, data:Bytes):Dynamic;
 	public function deleteTexture(texture:Dynamic):Dynamic;
 	public function updateTexture(texture:Dynamic, x:Int, y:Int, w:Int, h:Int, data:Bytes):Dynamic;
 	public function getTextureSize(texture:Dynamic):Size;
