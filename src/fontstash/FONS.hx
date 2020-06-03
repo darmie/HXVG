@@ -401,21 +401,21 @@ class Context {
 	}
 
 	public function validateTexture():Array<Int> {
-        var stash = this;
-        if (stash.dirtyRect[0] < stash.dirtyRect[2] && stash.dirtyRect[1] < stash.dirtyRect[3]) {
-            var dirty = [];
-            dirty = stash.dirtyRect.slice(0, 4);
-            stash.dirtyRect[0] = stash.renderer.width;
-            stash.dirtyRect[1] = stash.renderer.height;
-            stash.dirtyRect[2] = 0;
-            stash.dirtyRect[3] = 0;
-            return dirty;
-        }
+		var stash = this;
+		if (stash.dirtyRect[0] < stash.dirtyRect[2] && stash.dirtyRect[1] < stash.dirtyRect[3]) {
+			var dirty = [];
+			dirty = stash.dirtyRect.slice(0, 4);
+			stash.dirtyRect[0] = stash.renderer.width;
+			stash.dirtyRect[1] = stash.renderer.height;
+			stash.dirtyRect[2] = 0;
+			stash.dirtyRect[3] = 0;
+			return dirty;
+		}
 		return null;
 	}
 
 	public function getTextureData():{?data:Bytes, ?width:Int, ?height:Int} {
-		return {data:textureData, width:renderer.width, height: renderer.height};
+		return {data: textureData, width: renderer.width, height: renderer.height};
 	}
 
 	function flush() {}
