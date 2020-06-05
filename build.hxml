@@ -2,4 +2,7 @@
 -cp src/
 
 
---interp
+-lib Numerix
+-lib polygonal-ds
+
+-cpp bin/hxvg

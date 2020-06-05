@@ -8,10 +8,10 @@ import haxe.io.Bytes;
 
 typedef BakedChar = {
     // coordinates of bbox in bitmap
-    ?x0:Int, 
-    ?y0:Int, 
-    ?x1:Int, 
-    ?y1:Int,
+    ?x0:U16, 
+    ?y0:U16, 
+    ?x1:U16, 
+    ?y1:U16,
 
 
     ?xoff:Float, 
