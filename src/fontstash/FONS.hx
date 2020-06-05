@@ -17,6 +17,9 @@ class FONS {
 	public static final MAX_FONTIMAGE_SIZE = 2048;
 	public static final MAX_FONTIMAGES = 4;
 
+	public static final APREC = 16;
+	public static final ZPREC = 7;
+
 	public static function __mini(a:Int, b:Int) {
 		if (a < b) {
 			return a;
@@ -104,21 +107,53 @@ typedef TTextIter = {
 	?iblur:Int,
 	?font:Dynamic,
 	?prevGlyphIndex:Int,
+	?prevGlyph:Glyph,
 	?str:String,
-	?next:String,
-	?end:String,
+	?currentIndex:Int,
+	?next:Int,
+	?end:Int,
 	?utf8state:Int,
-	?bitmapOption:Int
+	?bitmapOption:Int,
+	?fontstash:Context
 }
 
+@:allow(Context)
 @:forward(x, y, nextx, nexty, scale, spacing, codepoint, isize, iblur, font, prevGlyphIndex, str, next, end, utf8state, bitmapOption)
 abstract TextIter(TTextIter) from TTextIter to TTextIter {
 	public inline function new(t:TTextIter) {
 		this = t;
 	}
 
-	public function next(quad:Quad):Int {
-		return 0;
+	public function Next(quad:Quad):Bool {
+		this.currentIndex = this.next;
+		if (this.currentIndex == this.end) {
+			quad = {};
+			return false;
+		}
+
+		var current = this.next;
+		var stash = this.fontstash;
+		var font = this.font;
+
+		this.codepoint = this.str.charCodeAt(current);
+		current++;
+
+		this.x = this.nextx;
+		this.y = this.nexty;
+		var glyph = stash.getGlyph(font, this.codepoint, this.isize, this.iblur);
+		var prevGlyphIndex = -1;
+		if(this.prevGlyph != null){
+			prevGlyphIndex = this.prevGlyph.index;
+		}
+		if(glyph != null){
+			var q = stash.getQuad(font, this.prevGlyphIndex, glyph, this.scale, this.spacing, this.nextx, this.nexty);
+			quad = q.quad;
+			this.nextx = q.x;
+			this.nexty = q.y;
+		} 
+		this.prevGlyph = glyph;
+		this.next = current;
+		return true;
 	}
 }
 
@@ -388,16 +423,231 @@ class Context {
 		return advance;
 	}
 
-	function getGlyph(font:Font, codePoint:Int, size:Int, blur:Int):Glyph {
-		return null;
+	public function getGlyph(font:Font, codePoint:Int, size:Int, blur:Int):Glyph {
+		if(size < 0) return null;
+		if(blur > 20) blur = 20;
+
+		var pad = blur +2;
+		var glyphkey:GlyphKey = {
+			codePoint: codePoint,
+			size:      size,
+			blur:      blur,
+		};
+
+		var hasGlyph = font.glyphs.exists(glyphkey);
+		if(hasGlyph) return font.glyphs.get(glyphkey);
+
+		var scale = font.getPixelHeightScale(size / 10.0);
+		var index = font.getGlyphIndex(codePoint);
+		var bitmap = font.buildGlyphBitmap(index, scale);
+		
+		var advance = bitmap.advance;
+		var x0 = bitmap.x0;
+		var y0 = bitmap.y0;
+		var x1 = bitmap.x1;
+		var y1 = bitmap.y1;
+
+		var gw = x1 - x0 + pad*2;
+		var gh = y1 - y0 + pad*2;
+
+		var rect = atlas.addRect(gw, gh);
+		var gx = rect.bestX;
+		var gy = rect.bestY;
+
+		var gr = gx + gw;
+		var gb = gy + gh;
+
+		var width = renderer.width;
+
+		var glyph:Glyph = {
+			codepoint: codePoint,
+			index:     index,
+			size:      size,
+			blur:      blur,
+			x0:        gx,
+			y0:        gy,
+			x1:        gr,
+			y1:        gb,
+			xAdv:      Std.int(scale * advance * 10.0),
+			xOff:      x0 - pad,
+			yOff:      y0 - pad,
+		};
+
+		font.glyphs.set(glyphkey, glyph);
+
+		// Rasterize
+		font.renderGlyphBitmap(textureData, gx+pad, gy+pad, x1-x0, y1-y0, width, scale, scale, index);
+
+		// Make sure there is one pixel empty border
+		var y = gy;
+		while(y < gb){
+			textureData.set(gx+y*width, 0);
+			textureData.set(gr-1+y*width, 0);
+			y++;
+		}
+		var x = gx;
+		while(x < gr){
+			textureData.set(x+gy*width, 0);
+			textureData.set(x+(gb-1)*width, 0);
+			x++;
+		}
+
+		if (blur > 0) {
+			this.nscratch = 0;
+			this.blur(gx, gy, gw, gh, blur);
+		}
+
+		dirtyRect[0] = FONS.__mini(dirtyRect[0], gx);
+		dirtyRect[1] = FONS.__mini(dirtyRect[1], gy);
+		dirtyRect[2] = FONS.__maxi(dirtyRect[2], gr);
+		dirtyRect[3] = FONS.__maxi(dirtyRect[3], gb);
+
+
+		return glyph;
 	}
 
-	function getQuad(font:Font, prevGlyphIndex:Int, glyph:Dynamic, scale:Float, spacing:Float, x:Float, y:Float):{quad:Quad, x:Float, y:Float} {
-		return null;
+	function blur(x:Int, y:Int, width:Int, height:Int, blur:Int){
+		var sigma = blur * 0.57735; // 1 / sqrt(3)
+		var alpha = Std.int((1<<FONS.APREC) * (1.0 - Math.exp(-2.3/(sigma+1.0))));
+		blurRows(x, y, width, height, alpha);
+		blurCols(x, y, width, height, alpha);
+		blurRows(x, y, width, height, alpha);
+		blurCols(x, y, width, height, alpha);
+	}
+
+	function blurRows(x0:Int, y0:Int, w:Int, h:Int, alpha:Int) {
+		var b = y0 +h;
+		var r = x0 +w;
+
+		var texture = textureData;
+		var textureWidth = renderer.width;
+		var x = x0;
+		while(x < r){
+			var z = 0; // force zero border
+			var y = 1 + y0;
+			while (y < b) {
+				var offset = x + y*textureWidth;
+				z += (alpha * ((Std.int(texture.get(offset)) << FONS.ZPREC) - z)) >> FONS.APREC;
+				texture.set(offset,  z >> FONS.ZPREC);
+				y++;
+			}
+			texture.set(x+(b-1)*textureWidth, 0); // force zero border
+			z = 0;
+			var _y = b - 2;
+			while(_y >= y0) {
+				var offset = x + _y*textureWidth;
+				z += (alpha * ((Std.int(texture.get(offset)) << FONS.ZPREC) - z)) >> FONS.APREC;
+				texture.set(offset, z >> FONS.ZPREC);
+				_y--;
+			}
+			texture.set(x+y0*textureWidth, 0);
+			x++;
+		}
+	}
+
+	function blurCols(x0:Int, y0:Int, w:Int, h:Int, alpha:Int) {
+		var b = y0 +h;
+		var r = x0 +w;
+
+		var texture = textureData;
+		var textureWidth = renderer.width;
+		var y = y0;
+		while(y < b){
+			var z = 0; // force zero border
+			var yOffset = y * textureWidth;
+			var x = 1 + x0;
+			while(x < r){
+				var offset = x + yOffset;
+				z += (alpha * ((Std.int(texture.get(offset)) << FONS.ZPREC) - z)) >> FONS.APREC;
+				texture.set(offset, z >> FONS.ZPREC);
+				x++;
+			}
+			texture.set(r-1+yOffset, 0);
+			z = 0;
+			var x = r - 2;
+			while(x >= x0){
+				var offset = x + yOffset;
+				z += (alpha * ((Std.int(texture.get(offset)) << FONS.ZPREC) - z)) >> FONS.APREC;
+				texture.set(offset, z >> FONS.ZPREC);
+				x--;
+			}
+			texture.set(x0+yOffset, 0);
+			y++;
+		}
+	}
+
+	public function getQuad(font:Font, prevGlyphIndex:Int, glyph:Glyph, scale:Float, spacing:Float, originalX:Float, originalY:Float):{quad:Quad, x:Float, y:Float} {
+		var ret:{?quad:Quad, ?x:Float, ?y:Float} = {};
+		ret.x = originalX;
+		ret.y = originalY;
+
+		if (prevGlyphIndex != -1) {
+			var adv = (font.getGlyphKernAdvance(prevGlyphIndex, glyph.index)) * scale;
+			ret.x += (Std.int(adv + spacing + 0.5));
+		}
+		var xOff = (Std.int(glyph.xOff + 1));
+		var yOff = (Std.int(glyph.yOff + 1));
+		var x0 = (Std.int(glyph.x0 + 1));
+		var y0 = (Std.int(glyph.y0 + 1));
+		var x1 = (Std.int(glyph.x1 - 1));
+		var y1 = (Std.int(glyph.y1 - 1));
+		// only support FONS_ZERO_TOPLEFT
+		var rx = (Std.int(ret.x + xOff));
+		var ry = (Std.int(ret.y + yOff));
+
+		ret.quad = {
+			x0: rx,
+			y0: ry,
+			x1: rx + x1 - x0,
+			y1: ry + y1 - y0,
+			s0: x0 * itw,
+			t0: y0 * ith,
+			s1: x1 * itw,
+			t1: y1 * ith,
+		};
+
+		ret.x += Std.int(glyph.xAdv/10.0 + 0.5);
+		return ret;
 	}
 
 	public function textIterInit(x:Float, y:Float, str:String, ?end:String, ?bitmapOption:Int):TextIter {
-		return {};
+		if (state.font == null)
+			return null;
+
+		var font = state.font;
+
+		if ((state.align & FONS_ALIGN_LEFT) != 0) {
+			// do nothing
+		} else if ((state.align & FONS_ALIGN_RIGHT) != 0) {
+			x -= textBounds(x, y, str, "", []);
+		} else if ((state.align & FONS_ALIGN_CENTER) != 0) {
+			x -= textBounds(x, y, str, "", []) * 0.5;
+		}
+		y += getVerticalAlign(font, state.align, state.size * 10.0);
+
+		
+
+		var iter:TextIter = new TextIter({
+			font: font,
+			x: x,
+			y: y,
+			nextx: x,
+			nexty: y,
+			spacing: state.spacing,
+			isize: Std.int(state.size * 10.0),
+			iblur: Std.int(state.blur),
+			scale: font.getPixelHeightScale(state.size),
+			currentIndex: 0,
+			next: 0,
+			end: str.length,
+			str: str,
+			codepoint: 0,
+			prevGlyphIndex: -1,
+			bitmapOption: bitmapOption,
+			fontstash: this
+		});
+
+		return iter;
 	}
 
 	public function validateTexture():Array<Int> {
@@ -418,7 +668,14 @@ class Context {
 		return {data: textureData, width: renderer.width, height: renderer.height};
 	}
 
-	function flush() {}
+	function flush() {
+		// Flush texture
+		this.validateTexture();
+		// Flush triangles
+		if(this.verts.length > 0){
+			this.verts = [];
+		}
+	}
 }
 
 typedef State = {
@@ -467,7 +724,23 @@ abstract Font(TFont) from TFont to TFont {
 		this = f;
 	}
 
-	public function getPixelHeightScale(size:Float):Float {
+	public inline function getGlyphIndex(codePoint:Int):Int {
 		return 0;
+	}
+
+	public inline  function getPixelHeightScale(size:Float):Float {
+		return 0;
+	}
+
+	public inline  function getGlyphKernAdvance(glyph1:Int, glyph2:Int):Float {
+		return 0;
+	}
+
+	public inline function buildGlyphBitmap(index:Int, scale:Float):{advance:Int, lsb:Int, x0:Int, y0:Int, x1:Int, y1:Int} {
+		return null;
+	}
+
+	public inline  function renderGlyphBitmap(data:Bytes, offsetX:Int, offsetY:Int, outWidth:Int, outHeight:Int, outStride:Int, scaleX:Float, scaleY:Float, index:Int) {
+		
 	}
 }
