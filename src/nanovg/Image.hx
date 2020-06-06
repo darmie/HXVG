@@ -13,7 +13,7 @@ import haxe.io.Bytes;
 class Image {
 
     var context:Context;
-    var handle:Dynamic;
+    public var handle:Dynamic;
 
     public var width:Int;
     public var height:Int;
@@ -28,7 +28,7 @@ class Image {
         context = ctx;
     }
 
-    public static function createFontImage(ctx:Context, textureType:TextureType, size:Size, imageFlags:ImageFlags):Image {
+    public static function createFromTexture(ctx:Context, textureType:TextureType, size:Size, imageFlags:ImageFlags):Image {
         var imageHandle = ctx.internalRenderer().createTexture(textureType, size.w, size.h, imageFlags, null);
 
         var img = new Image(ctx, imageFlags);

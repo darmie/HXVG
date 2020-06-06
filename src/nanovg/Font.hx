@@ -1,7 +1,11 @@
 package nanovg;
 
+import fontstash.FONS.Font as FonsFont;
+import sys.io.File;
+import truetype.FontInfo;
 import haxe.io.Bytes;
 import haxe.ds.Either;
+import fontstash.FONS.Context;
 
 //
 // Text
@@ -36,8 +40,6 @@ import haxe.ds.Either;
 //
 // Note: currently only solid color fill is supported for text.
 class Font {
-	var context:Context;
-
 	/**
 	 * Creates font by loading it from the disk from specified file name.
 	 *
@@ -45,8 +47,8 @@ class Font {
 	 * @param name
 	 * @param fileName
 	 */
-	public function new(ctx:Context, name:String, fileName:String) {
-		context = ctx;
+	public static function newFont(ctx:Context, name:String, fileName:String):FonsFont {
+		return ctx.addFont(name, fileName);
 	}
 
 	/**
@@ -55,7 +57,7 @@ class Font {
 	 * @param fileName
 	 * @param fontIndex
 	 */
-	public static function createAtIndex(name:String, fileName:String, fontIndex:Int):Font {
+	public static function createAtIndex(ctx:Context, name:String, fileName:String, fontIndex:Int):FonsFont {
 		return null;
 	}
 
@@ -65,8 +67,8 @@ class Font {
 	 * @param data
 	 * @param freeData
 	 */
-	public static function createFromMem(name:String, data:Bytes, freeData:Int):Font {
-		return null;
+	public static function createFromMem(ctx:Context, name:String, data:Bytes, freeData:Int):FonsFont {
+		return ctx.addFontMem(name, data, freeData);
 	}
 
 	/**
@@ -77,7 +79,7 @@ class Font {
 	 * @param fontIndex
 	 * @return Font
 	 */
-	public static function createFromMemAtIndex(name:String, data:Bytes, freeData:Int, fontIndex:Int):Font {
+	public static function createFromMemAtIndex(name:String, data:Bytes, freeData:Int, fontIndex:Int):FonsFont {
 		return null;
 	}
 
@@ -86,8 +88,8 @@ class Font {
 	 * @param name
 	 * @return Font
 	 */
-	public static function findFont(name:String):Font {
-		return null;
+	public static function findFont(ctx:Context, name:String):FonsFont {
+		return ctx.getFontByName(name);
 	}
 
 	/**
@@ -102,21 +104,15 @@ class Font {
 	public static function resetFallbackFonts(baseFont:FontFace) {}
 
 
-	function flushTextTexture(){
-
-	}
-
-	function allocTextAtlas():Bool{
-		return false;
-	}
+	
 
 }
 
 /**
  * FontFace abstract type that can be one of Font or String (name of the font)
  */
-abstract FontFace(Either<Font, String>) from Either<Font, String> to Either<Font, String> {
-	@:from inline static function fromA(a:Font):FontFace {
+abstract FontFace(Either<FonsFont, String>) from Either<FonsFont, String> to Either<FonsFont, String> {
+	@:from inline static function fromA(a:FonsFont):FontFace {
 		return Left(a);
 	}
 
@@ -124,7 +120,7 @@ abstract FontFace(Either<Font, String>) from Either<Font, String> to Either<Font
 		return Right(b);
 	}
 
-	@:to inline function toA():Null<Font>
+	@:to inline function toA():Null<FonsFont>
 		return switch (this) {
 			case Left(a): a;
 			default: null;

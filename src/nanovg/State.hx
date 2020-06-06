@@ -5,6 +5,7 @@ import nanovg.Align;
 import nanovg.Scissor;
 import nanovg.Paint;
 import nanovg.CompositeOperationState;
+import fontstash.FONS.Font;
 
 typedef State = {
     ?compositeOperation:CompositeOperationState,

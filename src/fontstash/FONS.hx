@@ -119,7 +119,7 @@ typedef TTextIter = {
 }
 
 @:allow(Context)
-@:forward(x, y, nextx, nexty, scale, spacing, codepoint, isize, iblur, font, prevGlyphIndex, str, next, end, utf8state, bitmapOption)
+@:forward(x, y, nextx, nexty, scale, spacing, codepoint, isize, iblur, font, prevGlyphIndex, str, next, end, utf8state, bitmapOption, currentIndex, prevGlyph)
 abstract TextIter(TTextIter) from TTextIter to TTextIter {
 	public inline function new(t:TTextIter) {
 		this = t;
@@ -173,10 +173,10 @@ class Context {
 	var nscratch:Int;
 	var state:State;
 
-	public function new(renderer:Renderer) {
-		this.renderer = renderer;
-		renderer.width = FONS.INIT_FONTIMAGE_SIZE;
-		renderer.height = FONS.INIT_FONTIMAGE_SIZE;
+	public function new(?width:Int, ?height:Int) {
+		this.renderer = new Renderer();
+		renderer.width = width == null ? FONS.INIT_FONTIMAGE_SIZE : width;
+		renderer.height = height == null ? FONS.INIT_FONTIMAGE_SIZE : height;
 		renderer.flags = FONS_ZERO_TOPLEFT;
 
 		atlas = new Atlas(
@@ -277,7 +277,7 @@ class Context {
 		dirtyRect[3] = FONS.__maxi(dirtyRect[3], gb);
 	}
 
-	public function getFontByName(name:String):Dynamic {
+	public function getFontByName(name:String):Font {
 		for (font in fonts) {
 			if (font.name == name) {
 				return font;

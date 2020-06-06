@@ -1,6 +1,7 @@
 package nanovg;
 
 typedef GlyphPosition = {
+    var index:Int; // Position of the glyph in the input string.
     /**
      * Position of the glyph in the input string.
      */

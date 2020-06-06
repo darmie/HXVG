@@ -1,19 +1,20 @@
 package nanovg;
 
 typedef TextRow = {
+    var string:String;
     /**
      * The input text where the row starts.
      */
-    var start:String;
+    var start:Int;
     /**
      * the input text where the row ends (one past the last character).
      */
-    var end:String;
+    var end:Int;
 
     /**
      * The beginning of the next row.
      */
-    var next:String;
+    var next:Int;
 
     /**
      * Logical width of the row.

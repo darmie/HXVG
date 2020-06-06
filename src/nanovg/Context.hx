@@ -1,5 +1,6 @@
 package nanovg;
 
+import fontstash.FONS.Quad;
 import haxe.ds.Vector;
 import nanovg.Renderer.IRenderer;
 import nanovg.Font.FontFace;
@@ -65,13 +66,15 @@ class Context {
 		reset();
 
 		setDevicePixelRatio(1.0);
+		
+		setFontRenderer(new fontstash.FONS.Context(NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE));
 	}
 
-	public function setFontRenderer(fontRenderer:Fontstash){
+	public function setFontRenderer(fontRenderer:Fontstash) {
 		fontstash = fontRenderer;
-		
+
 		// Create font texture
-		fontImages[0] = Image.createFontImage(this, TEXTURE_ALPHA, {w:fontstash.renderer.width, h: fontstash.renderer.height}, 0);
+		fontImages[0] = Image.createFromTexture(this, TEXTURE_ALPHA, {w: fontstash.renderer.width, h: fontstash.renderer.height}, 0);
 		fontImageIdx = 0;
 	}
 
@@ -877,36 +880,36 @@ class Context {
 		}
 
 		// Calculate tangential circle to lines (x0,y0)-(x1,y1) and (x1,y1)-(x2,y2).
-		dx0 = x0-x1;
-		dy0 = y0-y1;
-		dx1 = x2-x1;
-		dy1 = y2-y1;
-		MathExt.normalize((dx0),(dy0));
-		MathExt.normalize((dx1),(dy1));
-		a = Math.acos(dx0*dx1 + dy0*dy1);
-		d = radius / Math.tan(a/2.0);
+		dx0 = x0 - x1;
+		dy0 = y0 - y1;
+		dx1 = x2 - x1;
+		dy1 = y2 - y1;
+		MathExt.normalize((dx0), (dy0));
+		MathExt.normalize((dx1), (dy1));
+		a = Math.acos(dx0 * dx1 + dy0 * dy1);
+		d = radius / Math.tan(a / 2.0);
 
 		if (d > 10000.0) {
-			lineTo(x1,y1);
+			lineTo(x1, y1);
 			return;
 		}
-	
-		if (MathExt.cross(dx0,dy0, dx1,dy1) > 0.0) {
-			cx = x1 + dx0*d + dy0*radius;
-			cy = y1 + dy0*d + -dx0*radius;
+
+		if (MathExt.cross(dx0, dy0, dx1, dy1) > 0.0) {
+			cx = x1 + dx0 * d + dy0 * radius;
+			cy = y1 + dy0 * d + -dx0 * radius;
 			a0 = Math.atan2(dx0, -dy0);
 			a1 = Math.atan2(-dx1, dy1);
 			dir = CW;
-	//		printf("CW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
+			//		printf("CW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
 		} else {
-			cx = x1 + dx0*d + -dy0*radius;
-			cy = y1 + dy0*d + dx0*radius;
+			cx = x1 + dx0 * d + -dy0 * radius;
+			cy = y1 + dy0 * d + dx0 * radius;
 			a0 = Math.atan2(-dx0, dy0);
 			a1 = Math.atan2(dx1, -dy1);
 			dir = CCW;
-	//		printf("CCW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
+			//		printf("CCW c=(%f, %f) a0=%f° a1=%f°\n", cx, cy, a0/NVG_PI*180.0f, a1/NVG_PI*180.0f);
 		}
-	
+
 		arc(cx, cy, radius, a0, a1, dir);
 	}
 
@@ -943,57 +946,72 @@ class Context {
 	 * @param dir
 	 */
 	public function arc(cx:Float, cy:Float, r:Float, a0:Float, a1:Float, dir:Winding) {
-		var a: Float = 0; var da: Float = 0; var hda: Float = 0; var kappa: Float = 0;
-		var dx: Float = 0; var dy: Float = 0; var x: Float = 0; var y: Float = 0; var tanx: Float = 0; var tany: Float = 0;
-		var px: Float = 0; var py: Float = 0; var ptanx: Float = 0; var ptany: Float = 0;
-		var vals = new Vector<Float>(3 + 5*7 + 100);
-		var i: Int; var ndivs: Int; var nvals: Int;
-		var move: DrawCommands = ncommands > 0 ? LINETO : MOVETO;
-	
+		var a:Float = 0;
+		var da:Float = 0;
+		var hda:Float = 0;
+		var kappa:Float = 0;
+		var dx:Float = 0;
+		var dy:Float = 0;
+		var x:Float = 0;
+		var y:Float = 0;
+		var tanx:Float = 0;
+		var tany:Float = 0;
+		var px:Float = 0;
+		var py:Float = 0;
+		var ptanx:Float = 0;
+		var ptany:Float = 0;
+		var vals = new Vector<Float>(3 + 5 * 7 + 100);
+		var i:Int;
+		var ndivs:Int;
+		var nvals:Int;
+		var move:DrawCommands = ncommands > 0 ? LINETO : MOVETO;
+
 		// Clamp angles
 		da = a1 - a0;
 		if (dir == CW) {
-			if (Math.abs(da) >= NVG_PI*2) {
-				da = NVG_PI*2;
+			if (Math.abs(da) >= NVG_PI * 2) {
+				da = NVG_PI * 2;
 			} else {
-				while (da < 0.0) da += NVG_PI*2;
+				while (da < 0.0)
+					da += NVG_PI * 2;
 			}
 		} else {
-			if (Math.abs(da) >= NVG_PI*2) {
-				da = -NVG_PI*2;
+			if (Math.abs(da) >= NVG_PI * 2) {
+				da = -NVG_PI * 2;
 			} else {
-				while (da > 0.0) da -= NVG_PI*2;
+				while (da > 0.0)
+					da -= NVG_PI * 2;
 			}
 		}
-	
+
 		// Split arc into max 90 degree segments.
-		ndivs = Std.int(Math.max(1, Math.min(Std.int(Math.abs(da) / (NVG_PI*0.5) + 0.5), 5)));
+		ndivs = Std.int(Math.max(1, Math.min(Std.int(Math.abs(da) / (NVG_PI * 0.5) + 0.5), 5)));
 		hda = (da / ndivs) / 2.0;
 		kappa = Math.abs(4.0 / 3.0 * (1.0 - Math.cos(hda)) / Math.sin(hda));
-	
+
 		if (dir == CCW)
 			kappa = -kappa;
-	
+
 		nvals = 0;
 		for (i in 0...ndivs + 1) {
-			a = a0 + da * (i/ndivs);
+			a = a0 + da * (i / ndivs);
 			dx = Math.cos(a);
 			dy = Math.sin(a);
-			x = cx + dx*r;
-			y = cy + dy*r;
-			tanx = -dy*r*kappa;
-			tany = dx*r*kappa;
-	
+			x = cx + dx * r;
+			y = cy + dy * r;
+			tanx = -dy * r * kappa;
+			tany = dx * r * kappa;
+
 			if (i == 0) {
 				vals[nvals++] = move;
 				vals[nvals++] = x;
 				vals[nvals++] = y;
 			} else {
 				vals[nvals++] = BEZIERTO;
-				vals[nvals++] = px+ptanx;
-				vals[nvals++] = py+ptany;
-				vals[nvals++] = x-tanx;
-				vals[nvals++] = y-tany;
+				vals[nvals++] = px + ptanx;
+				vals[nvals++] = py + ptany;
+				vals[nvals++] = x - tanx;
+				vals[nvals++] = y - tany;
 				vals[nvals++] = x;
 				vals[nvals++] = y;
 			}
@@ -1002,7 +1020,7 @@ class Context {
 			ptanx = tanx;
 			ptany = tany;
 		}
-	
+
 		appendCommands(vals.toArray(), nvals);
 	}
 
@@ -1208,43 +1226,41 @@ class Context {
 	 */
 	public function stroke() {
 		var ctx = this;
-		var state: State = getState();
-		var scale: Float = getAverageScale(state.xform);
-		var strokeWidth: Float = MathExt.clamp(state.strokeWidth * scale, 0.0, 200.0);
-		var strokePaint: Paint = state.stroke;
-		var path: Path;
+		var state:State = getState();
+		var scale:Float = getAverageScale(state.xform);
+		var strokeWidth:Float = MathExt.clamp(state.strokeWidth * scale, 0.0, 200.0);
+		var strokePaint:Paint = state.stroke;
+		var path:Path;
 		// int i;
-	
-	
+
 		if (strokeWidth < ctx.fringeWidth) {
 			// If the stroke width is less than pixel size, use alpha to emulate coverage.
 			// Since coverage is area, scale by alpha*alpha.
-			var alpha: Float = MathExt.clamp(strokeWidth / ctx.fringeWidth, 0.0, 1.0);
-			strokePaint.innerColor.a *= alpha*alpha;
-			strokePaint.outerColor.a *= alpha*alpha;
+			var alpha:Float = MathExt.clamp(strokeWidth / ctx.fringeWidth, 0.0, 1.0);
+			strokePaint.innerColor.a *= alpha * alpha;
+			strokePaint.outerColor.a *= alpha * alpha;
 			strokeWidth = ctx.fringeWidth;
 		}
-	
+
 		// Apply global alpha
 		strokePaint.innerColor.a *= state.alpha;
 		strokePaint.outerColor.a *= state.alpha;
-	
+
 		flattenPaths();
-	
+
 		if (cast(ctx.renderer, Renderer).edgeAntiAlias != 0 && state.shapeAntiAlias != 0)
-			expandStroke(strokeWidth*0.5, ctx.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
+			expandStroke(strokeWidth * 0.5, ctx.fringeWidth, state.lineCap, state.lineJoin, state.miterLimit);
 		else
-			expandStroke(strokeWidth*0.5, 0.0, state.lineCap, state.lineJoin, state.miterLimit);
-	
-		ctx.renderer.stroke(strokePaint, state.compositeOperation, state.scissor, ctx.fringeWidth,
-								 strokeWidth, ctx.cache.paths);
-	
+			expandStroke(strokeWidth * 0.5, 0.0, state.lineCap, state.lineJoin, state.miterLimit);
+
+		ctx.renderer.stroke(strokePaint, state.compositeOperation, state.scissor, ctx.fringeWidth, strokeWidth, ctx.cache.paths);
+
 		// Count triangles
 		for (i in 0...ctx.cache.npaths) {
 			path = ctx.cache.paths[i];
-			ctx.strokeTriCount += path.nstroke-2;
+			ctx.strokeTriCount += path.nstroke - 2;
 			ctx.drawCallCount++;
-		}		
+		}
 	}
 
 	/**
@@ -1308,7 +1324,7 @@ class Context {
 	 * @param string
 	 * @param end
 	 */
-	public function text(x:Float, y:Float, string:String, ?end:String) {}
+	public function text(x:Float, y:Float, string:String) {}
 
 	/**
 	 * Draws multi-line text string at specified location wrapped at the specified width. If end is specified only the sub-string up to the end is drawn.
@@ -1320,37 +1336,39 @@ class Context {
 	 * @param string
 	 * @param end
 	 */
-	public function textBox(x:Float, y:Float, breakRowWidth:Float, string:String, ?end:String) {
-		var state: State = getState();
+	public function textBox(x:Float, y:Float, breakRowWidth:Float, string:String) {
+		var state:State = getState();
 		var rows = new Array<TextRow>();
-		var nrows: Int = 0; var i: Int;
-		var oldAlign: Int = state.textAlign;
-		var haling: Int = state.textAlign & (LEFT | CENTER | RIGHT);
-		var valign: Int = state.textAlign & (TOP | MIDDLE | BOTTOM | BASELINE);
-		var lineh: Float = 0;
-	
-		if (state.font == null) return; //FONS_INVALID
-	
+		var nrows:Int = 0;
+		var i:Int;
+		var oldAlign:Int = state.textAlign;
+		var haling:Int = state.textAlign & (LEFT | CENTER | RIGHT);
+		var valign:Int = state.textAlign & (TOP | MIDDLE | BOTTOM | BASELINE);
+		var lineh:Float = 0;
+
+		if (state.font == null)
+			return; // FONS_INVALID
+
 		var metrics = textMetrics();
 		lineh = metrics.lineh;
-	
+
 		state.textAlign = LEFT | valign;
-	
-		while ((nrows = textBreakLines(string, end, breakRowWidth, rows, 2)) != 0) {
+		state.textAlign = oldAlign;
+
+		while ((nrows = textBreakLines(string, breakRowWidth).length) != 0) {
 			for (i in 0...nrows) {
-				var row: TextRow = rows[i];
+				var row:TextRow = rows[i];
+				var _text = string.split("").slice(row.start, row.end).join("");
 				if ((haling & LEFT) != 0)
-					text(x, y, row.start, row.end);
+					text(x, y, _text);
 				else if ((haling & CENTER) != 0)
-					text(x + breakRowWidth*0.5 - row.width*0.5, y, row.start, row.end);
+					text(x + breakRowWidth * 0.5 - row.width * 0.5, y, _text);
 				else if ((haling & RIGHT) != 0)
-					text(x + breakRowWidth - row.width, y, row.start, row.end);
+					text(x + breakRowWidth - row.width, y, _text);
 				y += lineh * state.lineHeight;
 			}
-			string = rows[nrows-1].next;
+			// string = String.fromCharCode(rows[nrows - 1].next);
 		}
-	
-		state.textAlign = oldAlign;
 	}
 
 	/**
@@ -1364,7 +1382,33 @@ class Context {
 	 * @param end
 	 * @param bounds
 	 */
-	public function textBounds(x:Float, y:Float, string:String, end:Null<String>, bounds:Array<Float>) {}
+	public function textBounds(x:Float, y:Float, string:String, bounds:Array<Float>):Float {
+		var state = getState();
+		var scale = getFontScale(state) * devicePxRatio;
+		var invScale = 1.0 / scale;
+		if (state.font == null) {
+			bounds = null;
+			return 0;
+		}
+		fontstash.setSize(state.fontSize * scale);
+		fontstash.setSpacing(state.letterSpacing * scale);
+		fontstash.setBlur(state.fontBlur * scale);
+		var align:Int = state.textAlign;
+		fontstash.setAlign(align);
+		fontstash.setFont(state.font);
+
+		var width = fontstash.textBounds(x * scale, y * scale, string, null, bounds);
+		if (bounds != null) {
+			bounds[1] = fontstash.lineBounds(y * scale).minY;
+			bounds[3] = fontstash.lineBounds(y * scale).maxY;
+			bounds[0] *= invScale;
+			bounds[1] *= invScale;
+			bounds[2] *= invScale;
+			bounds[3] *= invScale;
+		}
+
+		return width;
+	}
 
 	/**
 	 * Measures the specified multi-text string. Parameter bounds should be float[4],
@@ -1375,10 +1419,77 @@ class Context {
 	 * @param y
 	 * @param breakRowWidth
 	 * @param string
-	 * @param end
-	 * @param bounds
 	 */
-	public function textBoxBounds(x:Float, y:Float, breakRowWidth:Float, string:String, end:Null<String>, bounds:Array<Float>) {}
+	public function textBoxBounds(x:Float, y:Float, breakRowWidth:Float, string:String):Array<Float> {
+		var state = getState();
+		if (state.font == null) {
+			return [];
+		}
+
+		var scale = getFontScale(state) * devicePxRatio;
+		var invScale = 1.0 / scale;
+
+		var oldAlign = state.textAlign;
+
+		var hAlign:Align;
+		if (state.textAlign & LEFT != 0) {
+			hAlign = LEFT;
+		} else if (state.textAlign & CENTER != 0) {
+			hAlign = CENTER;
+		} else if (state.textAlign & RIGHT != 0) {
+			hAlign = RIGHT;
+		}
+
+		var vAlign = state.textAlign & (TOP | MIDDLE | BOTTOM | BASELINE);
+
+		state.textAlign = LEFT | vAlign;
+
+		var minX = x;
+		var minY = y;
+		var maxX = x;
+		var maxY = y;
+
+		var lineh = this.textMetrics().lineh;
+		var rMinY = fontstash.lineBounds(0).minY;
+		var rMaxY = fontstash.lineBounds(0).maxY;
+
+		rMinY *= invScale;
+		rMaxY *= invScale;
+
+		for (row in textBreakLines(string, breakRowWidth)) {
+			var dx:Float;
+			// Horizontal bounds
+			switch hAlign {
+				case LEFT:
+					{
+						dx = 0;
+						break;
+					}
+				case CENTER:
+					{
+						dx = breakRowWidth * 0.5 - row.width * 0.5;
+						break;
+					}
+				case RIGHT:
+					{
+						dx = breakRowWidth - row.width;
+					}
+				case _:
+			}
+			var rMinX = x + row.minx + dx;
+			var rMaxX = x + row.maxx + dx;
+			minX = Math.min(minX, rMinX);
+			maxX = Math.max(maxX, rMaxX);
+			// Vertical bounds.
+			minY = Math.min(minY, y + rMinY);
+			maxY = Math.max(maxY, y + rMaxY);
+
+			y += lineh * state.lineHeight;
+		}
+
+		state.textAlign = oldAlign;
+		return [minX, minY, maxX, maxY];
+	}
 
 	/**
 	 * Calculates the glyph x positions of the specified text. If end is specified only the sub-string will be used.
@@ -1386,18 +1497,71 @@ class Context {
 	 * @param x
 	 * @param y
 	 * @param string
-	 * @param end
-	 * @param positions
-	 * @param maxPositions
 	 */
-	public function textGlyphPositions(x:Float, y:Float, string:String, end:Null<String>, positions:Array<GlyphPosition>, maxPositions:Int) {}
+	public function textGlyphPositions(x:Float, y:Float, string:String):Array<GlyphPosition> {
+		var state = getState();
+		var scale = getFontScale(state) * devicePxRatio;
+		var invScale = 1.0 / scale;
+		if (state.font == null) {
+			return null;
+		}
+
+		fontstash.setSize(state.fontSize * scale);
+		fontstash.setSpacing(state.letterSpacing * scale);
+		fontstash.setBlur(state.fontBlur * scale);
+		var align:Int = state.textAlign;
+		fontstash.setAlign(align);
+		fontstash.setFont(state.font);
+
+		var positions:Array<GlyphPosition> = [];
+		var iter = fontstash.textIterInit(x * scale, y * scale, string);
+		var prevIter = iter;
+
+		while (true) {
+			var quad:Quad;
+			if (!iter.Next(quad)) {
+				break;
+			}
+
+			if (iter.prevGlyph.index == -1 && !allocTextAtlas()) {
+				iter = prevIter;
+				iter.Next(quad); // try again
+			}
+
+			prevIter = iter;
+			positions.push({
+				index: iter.currentIndex,
+				str: string,
+				x: iter.x * invScale,
+				minx: Math.min(iter.x, quad.x0) * invScale,
+				maxx: Math.min(iter.nextx, quad.x1) * invScale
+			});
+		}
+
+		return positions;
+	}
 
 	/**
 	 * Returns the vertical metrics based on the current text style.
 	 * Measured values are returned in local coordinate space.
 	 */
 	public function textMetrics():{?ascender:Float, ?descender:Float, ?lineh:Float} {
-		return null;
+		var state = getState();
+		var scale = getFontScale(state) * devicePxRatio;
+		var invScale = 1.0 / scale;
+		if (state.font == null) {
+			return null;
+		}
+
+		fontstash.setSize(state.fontSize * scale);
+		fontstash.setSpacing(state.letterSpacing * scale);
+		fontstash.setBlur(state.fontBlur * scale);
+		var align:Int = state.textAlign;
+		fontstash.setAlign(align);
+		fontstash.setFont(state.font);
+
+		var m = fontstash.vertMetrics();
+		return {ascender: m.ascender * invScale, descender: m.descender * invScale, lineh: m.lineh * invScale};
 	}
 
 	/**
@@ -1406,8 +1570,216 @@ class Context {
 	 * Words longer than the max width are slit at nearest character (i.e. no hyphenation).
 	 * @return Int
 	 */
-	public function textBreakLines(string:String, end:String, breakRowWidth:Float, rows:Array<TextRow>, maxRows:Int):Int {
-		return 0;
+	public function textBreakLines(string:String, breakRowWidth:Float):Array<TextRow> {
+		var state = getState();
+		var scale = getFontScale(state) * devicePxRatio;
+		var invScale = 1.0 / scale;
+		if (state.font == null) {
+			return null;
+		}
+
+		var currentType:CodePointSize = SPACE;
+		var prevType:CodePointSize = CHAR;
+
+		fontstash.setSize(state.fontSize * scale);
+		fontstash.setSpacing(state.letterSpacing * scale);
+		fontstash.setBlur(state.fontBlur * scale);
+		var align:Int = state.textAlign;
+		fontstash.setAlign(align);
+		fontstash.setFont(state.font);
+
+		breakRowWidth *= scale;
+
+		var iter = fontstash.textIterInit(0, 0, string);
+		var prevIter = iter;
+		var prevCodePoint:Int;
+		var rows:Array<TextRow>;
+
+		var rowStartX:Float,
+			rowWidth:Float,
+			rowMinX:Float,
+			rowMaxX:Float,
+			wordStartX:Float,
+			wordMinX:Float,
+			breakWidth:Float,
+			breakMaxX:Float;
+		var rowStart = -1;
+		var rowEnd = -1;
+		var wordStart = -1;
+		var breakEnd = -1;
+
+		while (true) {
+			var quad:Quad;
+			if (!iter.Next(quad)) {
+				break;
+			}
+
+			if (iter.prevGlyph == null || iter.prevGlyph.index == -1 && !allocTextAtlas()) {
+				iter = prevIter;
+				iter.Next(quad); // try again
+			}
+
+			prevIter = iter;
+
+			switch iter.codepoint {
+				case 9: // \t
+					currentType = SPACE;
+				case 11: // \v
+					currentType = SPACE;
+				case 12: // \f
+					currentType = SPACE;
+				case 0x00a0: // NBSP
+					currentType = SPACE;
+				case 10: // \n
+					if (prevCodePoint == 13) {
+						currentType = NEWLINE;
+					} else {
+						currentType = SPACE;
+					}
+				case 13: // \r
+					if (prevCodePoint == 13) {
+						currentType = NEWLINE;
+					} else {
+						currentType = SPACE;
+					}
+				case 0x0085: // NEL
+					currentType = NEWLINE;
+				default:
+					currentType = CHAR;
+			}
+			if (currentType == NEWLINE) {
+				// Always handle new lines.
+				var tmpRowStart = rowStart;
+				if (rowStart == -1) {
+					tmpRowStart = iter.currentIndex;
+				}
+
+				if (rowEnd == -1) {
+					rowEnd = iter.currentIndex;
+				}
+
+				rows.push({
+					string: string,
+					start: tmpRowStart,
+					end: rowEnd,
+					width: rowWidth * invScale,
+					minx: rowMinX * invScale,
+					maxx: rowMaxX * invScale,
+					next: iter.next,
+				});
+				// Set null break point
+				breakEnd = rowStart;
+				breakWidth = 0.0;
+				breakMaxX = 0.0;
+				rowStart = -1;
+				rowEnd = -1;
+				rowMinX = 0;
+				rowMaxX = 0;
+
+				// Indicate to skip the white space at the beginning of the row.
+			} else {
+				if (rowStart == -1) {
+					if (currentType == CHAR) {
+						// The current char is the row so far
+						rowStartX = iter.x;
+						rowStart = iter.currentIndex;
+						rowEnd = iter.next;
+						rowWidth = iter.nextx - rowStartX; // q.x1 - rowStartX;
+						rowMinX = quad.x0 - rowStartX;
+						rowMaxX = quad.x1 - rowStartX;
+						wordStart = iter.currentIndex;
+						wordStartX = iter.x;
+						wordMinX = quad.x0 - rowStartX;
+						// Set null break point
+						breakEnd = rowStart;
+						breakWidth = 0.0;
+						breakMaxX = 0.0;
+					}
+				} else {
+					var nextWidth = iter.nextx - rowStartX;
+					// track last non-white space character
+					if (currentType == CHAR) {
+						rowEnd = iter.next;
+						rowWidth = iter.nextx - rowStartX;
+						rowMaxX = quad.x1 - rowStartX;
+					}
+					// track last end of a word
+					if (prevType == CHAR && currentType == SPACE) {
+						breakEnd = iter.currentIndex;
+						breakWidth = rowWidth;
+						breakMaxX = rowMaxX;
+					}
+					// track last beginning of a word
+					if (prevType == SPACE && currentType == CHAR) {
+						wordStart = iter.currentIndex;
+						wordStartX = iter.x;
+						wordMinX = quad.x0 - rowStartX;
+					}
+					// Break to new line when a character is beyond break width.
+					if (currentType == CHAR && nextWidth > breakRowWidth) {
+						// The run length is too long, need to break to new line.
+						if (breakEnd == rowStart) {
+							// The current word is longer than the row length, just break it from here.
+							rows.push({
+								string: string,
+								start: rowStart,
+								end: iter.currentIndex,
+								width: rowWidth * invScale,
+								minx: rowMinX * invScale,
+								maxx: rowMaxX * invScale,
+								next: iter.currentIndex
+							});
+							rowStartX = iter.x;
+							rowStart = iter.currentIndex;
+							rowEnd = iter.next;
+							rowWidth = iter.nextx - rowStartX;
+							rowMinX = quad.x0 - rowStartX;
+							rowMaxX = quad.x1 - rowStartX;
+							wordStart = iter.currentIndex;
+							wordStartX = iter.x;
+							wordMinX = quad.x0 - rowStartX;
+						} else {
+							// Break the line from the end of the last word, and start new line from the beginning of the new.
+							rows.push({
+								string: string,
+								start: rowStart,
+								end: breakEnd,
+								width: breakWidth * invScale,
+								minx: rowMinX * invScale,
+								maxx: breakMaxX * invScale,
+								next: wordStart,
+							});
+							rowStartX = wordStartX;
+							rowStart = wordStart;
+							rowEnd = iter.next;
+							rowWidth = iter.nextx - rowStartX;
+							rowMinX = wordMinX;
+							rowMaxX = quad.x1 - rowStartX;
+							// No change to the word start
+						}
+						// Set null break point
+						breakEnd = rowStart;
+						breakWidth = 0.0;
+						breakMaxX = 0.0;
+					}
+				}
+			}
+
+			prevCodePoint = iter.codepoint;
+			prevType = currentType;
+		}
+		if (rowStart != -1) {
+			rows.push({
+				string: string,
+				start: rowStart,
+				end: rowEnd,
+				width: rowWidth * invScale,
+				minx: rowMinX * invScale,
+				maxx: rowMaxX * invScale,
+				next: string.length,
+			});
+		}
+		return null;
 	}
 
 	inline static function free(x:Dynamic)
@@ -1701,6 +2073,54 @@ class Context {
 		return this.cache.verts;
 	}
 
+	function flushTextTexture() {
+		var dirty = fontstash.validateTexture();
+		if (dirty != null) {
+			var fontImage = fontImages[fontImageIdx];
+			// Update texture
+			if (fontImage != null) {
+				var txData = this.fontstash.getTextureData().data;
+				var x = dirty[0];
+				var y = dirty[1];
+				var w = dirty[2] - x;
+				var h = dirty[3] - y;
+				renderer.updateTexture(fontImage, x, y, w, h, txData);
+			}
+		}
+	}
+
+	function allocTextAtlas():Bool {
+		this.flushTextTexture();
+		if (fontImageIdx >= NVG_MAX_FONTIMAGES - 1) {
+			return false;
+		}
+		var iw:Int, ih:Int;
+		// if next fontImage already have a texture
+		if (fontImages[fontImageIdx + 1] != null) {
+			var s = fontImages[fontImageIdx + 1].size();
+			iw = s.w;
+			ih = s.h;
+		} else { // calculate the new font image size and create it.
+			var s = fontImages[fontImageIdx].size();
+			iw = s.w;
+			ih = s.h;
+
+			if (iw > ih) {
+				ih *= 2;
+			} else {
+				iw *= 2;
+			}
+			if (iw > NVG_MAX_FONTIMAGE_SIZE || ih > NVG_MAX_FONTIMAGE_SIZE) {
+				iw = NVG_MAX_FONTIMAGE_SIZE;
+				ih = NVG_MAX_FONTIMAGE_SIZE;
+			}
+			fontImages[fontImageIdx + 1] = Image.createFromTexture(this, TEXTURE_ALPHA, {w: iw, h: ih}, 0);
+		}
+		fontImageIdx++;
+		this.fontstash.resetAtlas(iw, ih);
+		return true;
+	}
+
 	static function triarea2(ax:Float, ay:Float, bx:Float, by:Float, cx:Float, cy:Float):Float {
 		var abx:Float = bx - ax;
 		var aby:Float = by - ay;
@@ -1797,7 +2217,7 @@ class Context {
 
 	function flattenPaths():Void {
 		var cache:PathCache = this.cache;
-		
+
 		var last:Point;
 		var p0:Pointer<Point>;
 		var p1:Pointer<Point>;
@@ -2516,26 +2936,25 @@ class Context {
 		return 1;
 	}
 
-
 	inline function getFontScale(state:State):Float {
 		return Math.min(MathExt.quantize(getAverageScale(state.xform), 0.01), 4.0);
 	}
 
-	function renderText(verts: Array<Vertex>, nverts: Int){
+	function renderText(verts:Array<Vertex>, nverts:Int) {
 		var ctx = this;
-		var state: State = getState();
-		var paint: Paint = state.fill;
-	
+		var state:State = getState();
+		var paint:Paint = state.fill;
+
 		// Render triangles.
 		paint.image = ctx.fontImages[ctx.fontImageIdx];
-	
+
 		// Apply global alpha
 		paint.innerColor.a *= state.alpha;
 		paint.outerColor.a *= state.alpha;
-	
+
 		ctx.renderer.triangles(paint, state.compositeOperation, state.scissor, verts, ctx.fringeWidth);
-	
+
 		ctx.drawCallCount++;
-		ctx.textTriCount += Std.int(nverts/3);		
+		ctx.textTriCount += Std.int(nverts / 3);
 	}
 }
