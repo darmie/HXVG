@@ -4,6 +4,7 @@ import sys.io.File;
 import haxe.ds.IntMap;
 import truetype.FontInfo;
 import haxe.io.Bytes;
+import polygonal.ds.ArrayList;
 
 class FONS {
 	public static final INVALID = -1;
@@ -157,32 +158,6 @@ abstract TextIter(TTextIter) from TTextIter to TTextIter {
 	}
 }
 
-typedef TAtlas = {
-	?width:Int,
-	?height:Int,
-	?nodes:Array<AtlasNodes>,
-	?nnodes:Int,
-	?cnodes:Int
-}
-
-abstract Atlas(TAtlas) from TAtlas to TAtlas {
-	inline function new(atlas:TAtlas) {
-		this = atlas;
-	}
-
-	public function addRect(w:Int, height:Int):{?bestX:Int, ?bestY:Int} {
-		return {};
-	}
-
-	public function reset(w:Int, height:Int) {}
-}
-
-typedef AtlasNodes = {
-	?x:Int,
-	?y:Int,
-	?width:Int
-}
-
 class Context {
 	public var renderer:Renderer;
 
@@ -204,11 +179,11 @@ class Context {
 		renderer.height = FONS.INIT_FONTIMAGE_SIZE;
 		renderer.flags = FONS_ZERO_TOPLEFT;
 
-		atlas = {
-			width: renderer.width,
-			height: renderer.height,
-			nnodes: FONS.INIT_ATLAS_NODES
-		};
+		atlas = new Atlas(
+			renderer.width,
+			renderer.height,
+			FONS.INIT_ATLAS_NODES
+		);
 
 		fonts = [];
 		itw = Std.int(1.0 / renderer.width);
@@ -725,22 +700,25 @@ abstract Font(TFont) from TFont to TFont {
 	}
 
 	public inline function getGlyphIndex(codePoint:Int):Int {
-		return 0;
+		return this.font.findGlyphIndex(codePoint);
 	}
 
 	public inline  function getPixelHeightScale(size:Float):Float {
-		return 0;
+		return this.font.scaleForPixelHeight(size);
 	}
 
 	public inline  function getGlyphKernAdvance(glyph1:Int, glyph2:Int):Float {
-		return 0;
+		return this.font.getGlyphKernAdvance(glyph1, glyph2);
 	}
 
 	public inline function buildGlyphBitmap(index:Int, scale:Float):{advance:Int, lsb:Int, x0:Int, y0:Int, x1:Int, y1:Int} {
-		return null;
+		var m = this.font.getGlyphHMetrics(index);
+		var box = this.font.getGlyphBitmapBoxSubpixel(index, scale, scale, 0, 0);
+
+		return {advance: m.ascent, lsb:m.descent, x0:box.ix0, y0:box.iy0, x1:box.ix1, y1:box.iy1};
 	}
 
 	public inline  function renderGlyphBitmap(data:Bytes, offsetX:Int, offsetY:Int, outWidth:Int, outHeight:Int, outStride:Int, scaleX:Float, scaleY:Float, index:Int) {
-		
+		this.font.makeGlyphBitmapSubpixel(data.sub(offsetY*outStride+offsetX, data.length - (offsetY*outStride+offsetX)), outWidth, outHeight, outStride, scaleX, scaleY, 0, 0, index);
 	}
 }
