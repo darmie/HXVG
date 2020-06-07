@@ -66,7 +66,7 @@ class Context {
 		reset();
 
 		setDevicePixelRatio(1.0);
-		
+
 		setFontRenderer(new fontstash.FONS.Context(NVG_INIT_FONTIMAGE_SIZE, NVG_INIT_FONTIMAGE_SIZE));
 	}
 
@@ -1324,7 +1324,95 @@ class Context {
 	 * @param string
 	 * @param end
 	 */
-	public function text(x:Float, y:Float, string:String) {}
+	public function text(x:Float, y:Float, string:String):Float {
+		var state = getState();
+		var scale = getFontScale(state) * devicePxRatio;
+
+		var invScale = 1.0 / scale;
+		if (state.font == null) {
+			return 0;
+		}
+
+		fontstash.setSize(state.fontSize * scale);
+		fontstash.setSpacing(state.letterSpacing * scale);
+		fontstash.setBlur(state.fontBlur * scale);
+		var align:Int = state.textAlign;
+		fontstash.setAlign(align);
+		fontstash.setFont(state.font);
+
+		var vertexCount = Std.int(Math.max(2, string.length) * 4); // conservative estimate.
+		var vertexes = allocVertexes(vertexCount);
+
+		var iter = fontstash.textIterInit(x * scale, y * scale, string);
+		var prevIter = iter;
+		var index = 0;
+
+		while (true) {
+			var quad:Quad;
+			if (!iter.Next(quad)) {
+				break;
+			}
+
+			if (iter.prevGlyph == null || iter.prevGlyph.index == -1) {
+				if (allocTextAtlas()) {
+					break; // no memory :(
+				}
+
+				if (index != 0) {
+					renderText(vertexes.slice(0, index));
+					index = 0;
+				}
+
+				iter = prevIter;
+				iter.Next(quad); // try again
+				if (iter.prevGlyph == null || iter.prevGlyph.index == -1) {
+					// still can not find glyph?
+					break;
+				}
+			}
+			prevIter = iter;
+			var c0:Float, c1:Float;
+			transformPoint(quad.x0 * invScale, quad.y0 * invScale, state.xform, c0, c1);
+			var c2:Float, c3:Float;
+			transformPoint(quad.x1 * invScale, quad.y0 * invScale, state.xform, c2, c3);
+			var c4:Float, c5:Float;
+			transformPoint(quad.x1 * invScale, quad.y1 * invScale, state.xform, c4, c5);
+			var c6:Float, c7:Float;
+			transformPoint(quad.x0 * invScale, quad.y1 * invScale, state.xform, c6, c7);
+
+			// Create triangles
+			if (index + 4 <= vertexCount) {
+				vertexes[index] = {
+					x: c2,
+					y: c3,
+					u: quad.s1,
+					v: quad.t0
+				};
+				vertexes[index + 1] = {
+					x: c0,
+					y: c1,
+					u: quad.s0,
+					v: quad.t0
+				};
+				vertexes[index + 2] = {
+					x: c4,
+					y: c5,
+					u: quad.s1,
+					v: quad.t1
+				};
+				vertexes[index + 3] = {
+					x: c6,
+					y: c7,
+					u: quad.s0,
+					v: quad.t1
+				};
+				index += 4;
+			}
+		}
+		flushTextTexture();
+		renderText(vertexes.slice(0, index));
+		return iter.x;
+	}
 
 	/**
 	 * Draws multi-line text string at specified location wrapped at the specified width. If end is specified only the sub-string up to the end is drawn.
@@ -1795,6 +1883,15 @@ class Context {
 		if (c.verts != null)
 			free(c.verts);
 		free(c);
+	}
+
+	function allocVertexes(n:Int):Array<Vertex> {
+		var offset = cache.verts.length;
+		for (i in 0...n) {
+			cache.verts.push({});
+		}
+
+		return cache.verts.slice(offset);
 	}
 
 	static function allocPathCache():PathCache {
@@ -2940,7 +3037,7 @@ class Context {
 		return Math.min(MathExt.quantize(getAverageScale(state.xform), 0.01), 4.0);
 	}
 
-	function renderText(verts:Array<Vertex>, nverts:Int) {
+	function renderText(verts:Array<Vertex>) {
 		var ctx = this;
 		var state:State = getState();
 		var paint:Paint = state.fill;
@@ -2955,6 +3052,6 @@ class Context {
 		ctx.renderer.triangles(paint, state.compositeOperation, state.scissor, verts, ctx.fringeWidth);
 
 		ctx.drawCallCount++;
-		ctx.textTriCount += Std.int(nverts / 3);
+		ctx.textTriCount += Std.int(verts.length / 3);
 	}
 }
